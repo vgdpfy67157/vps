@@ -1,1 +1,74 @@
+name: Ubuntu Cloud RDP
 
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+
+      - name: 1. Update Ubuntu & Install Desktop + XRDP
+        run: |
+          sudo apt update
+          sudo apt upgrade -y
+
+          # Install Ubuntu Desktop environment
+          sudo apt install -y ubuntu-desktop-minimal
+
+          # Install XRDP
+          sudo apt install -y xrdp
+
+          sudo systemctl enable xrdp
+          sudo systemctl start xrdp
+
+          # Allow xrdp user access
+          sudo adduser xrdp ssl-cert
+
+
+      - name: 2. Create Admin User
+        run: |
+          sudo useradd -m -s /bin/bash CynetAdmin
+          echo "ISSAdmin:Iss@2026" | sudo chpasswd
+          sudo usermod -aG sudo CynetAdmin
+
+
+      - name: 3. Install & Connect Tailscale VPN
+        env:
+          TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+        run: |
+
+          curl -fsSL https://tailscale.com/install.sh | sh
+
+          sudo tailscale up \
+            --authkey=$TAILSCALE_AUTHKEY \
+            --hostname=github-ubuntu-rdp
+
+
+          sleep 10
+
+
+          TS_IP=$(tailscale ip -4)
+
+
+          echo ""
+          echo "=================================================="
+          echo " >>> UBUNTU RDP SERVER READY <<<"
+          echo ""
+          echo " Tailscale IP : $TS_IP"
+          echo " Username     : ISSAdmin"
+          echo " Password     : Iss@2026"
+          echo ""
+          echo " Connect using Microsoft Remote Desktop"
+          echo "=================================================="
+
+
+      - name: 4. Keep Server Alive (6 Hours)
+        run: |
+          for i in {1..360}
+          do
+            sleep 60
+            echo "[$i/360] Server running..."
+          done
